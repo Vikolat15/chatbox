@@ -1,48 +1,56 @@
-document.getElementById('hora-bienvenida').textContent = new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+(function () {
+    const obtenerHora = () => new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
-function horaActual() {
-    return new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
-}
+    const initChat = () => {
+        const launcher = document.getElementById('chat-launcher');
+        const windowChat = document.getElementById('chat-window');
+        const btnCerrar = document.getElementById('btn-cerrar');
+        const btnEnviar = document.getElementById('btn-enviar');
+        const inputEl = document.getElementById('chat-input');
+        const mensajesEl = document.getElementById('chat-mensajes');
+        const hBienvenida = document.getElementById('hora-bienvenida');
 
-function agregarMensaje(texto, tipo) {
-    var mensajesEl = document.getElementById('chat-mensajes');
-    var wrap = document.createElement('div');
-    wrap.className = 'burbuja ' + tipo;
-    wrap.innerHTML = '<div><div class="burbuja-texto">' + texto + '</div><div class="burbuja-hora">' + horaActual() + '</div></div>';
-    mensajesEl.appendChild(wrap);
-    mensajesEl.scrollTop = mensajesEl.scrollHeight;
-}
+        if (hBienvenida) hBienvenida.textContent = obtenerHora();
+        if (!launcher || !windowChat) return;
 
-function enviarMensaje() {
-    var inputEl = document.getElementById('chat-input');
-    var texto = inputEl.value.trim();
-    if (!texto) return;
-    agregarMensaje(texto, 'usuario');
-    inputEl.value = '';
-    inputEl.style.height = 'auto';
-    // Aquí se conectará la IA próximamente
-}
+        launcher.onclick = (e) => {
+            e.preventDefault();
+            windowChat.classList.toggle('hidden');
+        };
 
-document.getElementById('chat-launcher').onclick = function () {
-    document.getElementById('chat-window').classList.toggle('hidden');
-};
+        btnCerrar.onclick = (e) => {
+            e.preventDefault();
+            windowChat.classList.add('hidden');
+        };
 
-document.getElementById('btn-cerrar').onclick = function (e) {
-    e.stopPropagation();
-    document.getElementById('chat-window').classList.add('hidden');
-    return false;
-};
+        const enviar = () => {
+            let txt = inputEl.value.trim();
+            if (!txt) return;
 
-document.getElementById('btn-enviar').onclick = enviarMensaje;
+            let msg = document.createElement('div');
+            msg.className = 'burbuja usuario';
+            // Se añade la hora debajo del texto
+            msg.innerHTML = `<div><div class="burbuja-texto">${txt}</div><div class="burbuja-hora">${obtenerHora()}</div></div>`;
+            mensajesEl.appendChild(msg);
 
-document.getElementById('chat-input').addEventListener('keydown', function (e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        enviarMensaje();
+            inputEl.value = '';
+            mensajesEl.scrollTop = mensajesEl.scrollHeight;
+        };
+
+        if (btnEnviar) btnEnviar.onclick = enviar;
+        if (inputEl) {
+            inputEl.onkeydown = (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    enviar();
+                }
+            };
+        }
+    };
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initChat);
+    } else {
+        initChat();
     }
-});
-
-document.getElementById('chat-input').addEventListener('input', function () {
-    this.style.height = 'auto';
-    this.style.height = Math.min(this.scrollHeight, 80) + 'px';
-});
+})();
