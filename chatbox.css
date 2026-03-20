@@ -29,7 +29,6 @@
     transition: transform 0.2s;
 }
 
-/* Tooltip al hacer hover sobre el botón lanzador */
 #chat-launcher::before {
     content: attr(title);
     position: absolute;
@@ -64,7 +63,6 @@
     opacity: 1;
 }
 
-/* Ocultar tooltip cuando el chat está abierto */
 #chat-launcher.chat-abierto::before,
 #chat-launcher.chat-abierto::after {
     opacity: 0 !important;
@@ -103,12 +101,13 @@
 .avatar {
     width: 35px;
     height: 35px;
-    background: var(--naranja);
+    background: transparent;
     border-radius: 10px;
     display: flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    overflow: hidden;
 }
 
 .nombre {

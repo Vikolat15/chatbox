@@ -1,9 +1,16 @@
 (function () {
     //Conexión api gemini
-    const API_KEY = "";//meter api key de gemini
-    const URL_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + API_KEY;
+    const GEMINI_KEY = "";//Introducir api key gemini
+    const URL_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + GEMINI_KEY;    //Conexión Supabase para RAG
+    const SUPABASE_URL = "";//Introducir url supabase
+    const SUPABASE_ANON_KEY = "";//Introducir clave anon supabase
     //Instrucción a gemini
-    const SISTEMA = "Eres un asistente interno de Couce Consulting. Responde siempre en español, de forma profesional y concisa. Si no sabes algo, dilo honestamente.";
+    const SISTEMA = `Eres un asistente virtual de Couce Consulting, una empresa de consultoría energética.
+Responde siempre en español, de forma profesional y concisa.
+Usa únicamente la información del contexto proporcionado para responder.
+Si la pregunta no está relacionada con Couce Consulting o la energía, indícalo amablemente y redirige al usuario a contactar con la empresa.
+Si no encuentras información suficiente en el contexto, dilo honestamente.
+No incluyas datos de contacto al final de cada respuesta. Termina siempre preguntando si necesita algo más.`;
 
     //Límite de historial para no gastar tokens innecesarios
     const MAX_HISTORIAL = 10;
@@ -27,11 +34,48 @@
             .replace(/\n/g, '<br>');
     };
 
-    //Sanitizar texto del usuario para evitar XSS
+    //Sanitizar texto del usuario antes de mostrarlo (evitar XSS)
     const sanitizar = (texto) => {
         const div = document.createElement('div');
         div.textContent = texto;
         return div.innerHTML;
+    };
+
+    //Generar embedding de la pregunta del usuario con Gemini (3072 dimensiones)
+    const generarEmbedding = async (texto) => {
+        const res = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${GEMINI_KEY}`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: 'models/gemini-embedding-001',
+                    content: { parts: [{ text: texto }] }
+                })
+            }
+        );
+        const data = await res.json();
+        if (!data.embedding) throw new Error('Error generando embedding');
+        return data.embedding.values;
+    };
+
+    //Buscar documentos relevantes en Supabase según la pregunta
+    const buscarContexto = async (embedding) => {
+        const res = await fetch(`${SUPABASE_URL}/rest/v1/rpc/buscar_documentos`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+            },
+            body: JSON.stringify({
+                query_embedding: `[${embedding.join(',')}]`,
+                limite: 3
+            })
+        });
+        if (!res.ok) throw new Error('Error buscando contexto en Supabase');
+        const datos = await res.json();
+        return datos.map(d => d.contenido).join('\n\n');
     };
 
     const initChat = () => {
@@ -48,20 +92,19 @@
         if (hBienvenida) hBienvenida.textContent = obtenerHora();
         if (!launcher || !windowChat) return;
 
-        // Abrir y cerrar
+        // Abrir / cerrar
         launcher.onclick = (e) => {
             e.preventDefault();
             const abierto = windowChat.classList.toggle('hidden');
             launcher.classList.toggle('chat-abierto', !abierto);
             if (!abierto) inputEl.focus();
         };
+        //Btn-cerrar con área de click más grande (aplicado en CSS)
         btnCerrar.onclick = (e) => {
             e.preventDefault();
             windowChat.classList.add('hidden');
             launcher.classList.remove('chat-abierto');
         };
-
-
 
         //Auto-resize del textarea al escribir
         inputEl.addEventListener('input', () => {
@@ -77,7 +120,7 @@
             btnEnviar.disabled = len > MAX_CHARS;
         });
 
-        // Puntos de pensando respuesta
+        // Typing indicator
         const mostrarTyping = () => {
             const div = document.createElement('div');
             div.className = 'burbuja bot';
@@ -95,11 +138,11 @@
             if (el) el.remove();
         };
 
-        // Burbuja bot con botón copiar y markdown renderizado
+        // Burbuja bot con botón copiar y renderizado
         const agregarRespuestaBot = (texto) => {
             const div = document.createElement('div');
             div.className = 'burbuja bot';
-            //Renderizar en respuestas del bot
+            //Renderizar respuestas del bot
             div.innerHTML = `<div>
                 <div class="burbuja-texto md-content">${renderMarkdown(texto)}</div>
                 <div style="display:flex;align-items:center;gap:6px;">
@@ -122,7 +165,7 @@
             mensajesEl.scrollTop = mensajesEl.scrollHeight;
         };
 
-        // Enviar mensaje
+        // Enviar mensaje con flujo RAG
         const enviar = async () => {
             const txt = inputEl.value.trim();
             if (!txt || txt.length > MAX_CHARS) return;
@@ -142,13 +185,6 @@
             }
             mensajesEl.scrollTop = mensajesEl.scrollHeight;
 
-            historial.push({ role: "user", parts: [{ text: txt }] });
-
-            //Recortar historial para mantener solo los últimos mensajes
-            if (historial.length > MAX_HISTORIAL) {
-                historial = historial.slice(historial.length - MAX_HISTORIAL);
-            }
-
             mostrarTyping();
             //Estado de carga en el botón enviar, bloquear input también
             btnEnviar.disabled = true;
@@ -157,6 +193,24 @@
             inputEl.style.opacity = '0.5';
 
             try {
+                //convertir pregunta en embedding
+                const embedding = await generarEmbedding(txt);
+
+                //buscar documentos relevantes en Supabase
+                const contexto = await buscarContexto(embedding);
+
+                //añadir al historial con contexto
+                historial.push({
+                    role: "user",
+                    parts: [{ text: `Contexto relevante:\n${contexto}\n\nPregunta del usuario: ${txt}` }]
+                });
+
+                //Recortar historial para mantener solo los últimos mensajes
+                if (historial.length > MAX_HISTORIAL) {
+                    historial = historial.slice(historial.length - MAX_HISTORIAL);
+                }
+
+                //enviar a Gemini con el contexto
                 const response = await fetch(URL_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
