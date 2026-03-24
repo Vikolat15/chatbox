@@ -1,6 +1,9 @@
 (function () {
     //Conexión api gemini
+    const GEMINI_KEY = "";//Introducir api key gemini
     const URL_API = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + GEMINI_KEY;    //Conexión Supabase para RAG
+    const SUPABASE_URL = "";//Introducir url supabase
+    const SUPABASE_ANON_KEY = "";//Introducir clave anon supabase
     //Instrucción a gemini
     const SISTEMA = `Eres el asistente experto de la consultora energética Couce Consulting. 
 

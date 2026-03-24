@@ -10,10 +10,14 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 # Credenciales — rellena con las tuyas
+GEMINI_KEY = ""
+SUPABASE_URL = ""
+SUPABASE_ANON_KEY = ""
 
 # Carpeta a vigilar
+CARPETA = r""
 
-# amaño de bloquede los archivos
+# Tamaño de bloquede los archivos
 TAMANO_BLOQUE = 1500
 
 # Límite máximo de tamaño de archivo en MB
